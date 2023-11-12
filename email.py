@@ -30,19 +30,14 @@ class Email:
     """The email class checks your emails for you
     """
 
-    def _init_(self):
+    def __init__(self, account, password, server, folder, port):
         """Init"""
         self.i_engine = inflect.engine()
-
-    def update_credentials(self):
-        self.server = True
-
-        # Update your email credentials logic here
-        self.account = input("Enter your email address: ")
-        self.password = input("Enter your email password: ")
-        self.server = input("Enter your email server address (e.g., imap.gmail.com): ")
-        self.folder = input("Enter the folder to check (e.g., inbox): ")
-        self.port = input("Enter the port (e.g., 993 for IMAP over SSL): ")
+        self.account = account
+        self.password = password
+        self.server = server
+        self.folder = folder
+        self.port = port
 
     def initialize(self):
         # Start the notification service if needed
@@ -75,13 +70,10 @@ class Email:
                     stop_num += 10
                     continue
 
-    def list_new_email(self, account, folder, password, port, address, whitelist=None, mark_as_seen=False):
-        if self.update_credentials() is False:  # No credentials
-            return []
-
-        M = imaplib.IMAP4_SSL(str(address), port=int(port))
-        M.login(str(account), str(password))
-        M.select(str(folder))
+    def list_new_email(self, whitelist=None, mark_as_seen=False):
+        M = imaplib.IMAP4_SSL(str(self.server), port=int(self.port))
+        M.login(str(self.account), str(self.password))
+        M.select(str(self.folder))
         rv, data = M.search(None, "(UNSEEN)")
         message_num = 1
         new_emails = []
@@ -115,11 +107,8 @@ class Email:
         return list(new_emails)
 
     def poll_emails(self):
-        setting = {"whitelist": None}  # Assuming no whitelist initially
         try:
-            new_emails = self.list_new_email(account=self.account, folder=self.folder, password=self.password,
-                                             port=self.port, address=self.server, whitelist=setting['whitelist'],
-                                             mark_as_seen=True)
+            new_emails = self.list_new_email(whitelist=None, mark_as_seen=True)
         except Exception as e:
             print(f"Error: {e}")
             return
@@ -138,16 +127,11 @@ class Email:
             print("No emails read.")
 
     def enquire_new_email(self):
-        if self.update_credentials() is False:  # No credentials
-            return
-
         sender = input("Enter the email address to inquire about: ").lower()
-        setting = {"whitelist": [sender]}
+        whitelist = [sender]
 
         try:
-            new_emails = self.list_new_email(account=self.account, folder=self.folder, password=self.password,
-                                             port=self.port, address=self.server, whitelist=setting['whitelist'],
-                                             mark_as_seen=True)
+            new_emails = self.list_new_email(whitelist=whitelist, mark_as_seen=True)
         except Exception as e:
             print(f"Error: {e}")
             return
@@ -159,81 +143,44 @@ class Email:
         self.report_email(new_emails)
 
     def enable_email_polling(self):
-        if self.update_credentials() is False:  # No credentials
+        sender = normalize_email(input("Enter the sender's email address to enable email polling: "))
+        whitelist = [sender]
+
+        print("Update notification data.")
+
+        try:
+            new_emails = self.list_new_email(whitelist=whitelist, mark_as_seen=True)
+        except Exception as e:
+            print(f"Error: {e}")
             return
 
-        sender = normalize_email(input("Enter the sender's email address to enable email polling: "))
-        setting = {"whitelist": [sender]}
+        if not new_emails:
+            print("No new emails.")
+            return
 
-        if not setting:
-            print("Email notification service is not active yet.")
-            if sender:
-                setting['whitelist'] = [sender]
-            else:
-                setting['whitelist'] = None
-
-            print("Start the notification service.")
-            self.poll_emails()
-        else:
-            if not setting['whitelist'] and sender:
-                replace = input(f"Cancel looking for all and look for {sender} only? (yes/no): ")
-                if replace.lower() == "yes":
-                    setting['whitelist'] = [sender]
-                else:
-                    return
-            elif not setting['whitelist'] and not sender:
-                print("Already looking for all new emails.")
-                return
-            elif sender in setting['whitelist']:
-                print(f"Already looking for emails from {sender}.")
-                return
-            elif setting['whitelist'] and not sender:
-                replace = input(f"Cancel looking for specific sender and look for all? (yes/no): ")
-                if replace.lower() == "yes":
-                    setting['whitelist'] = None
-                else:
-                    return
-            else:
-                setting['whitelist'].append(sender)
-
-            print("Update notification data.")
+        self.report_email(new_emails)
         print("Settings saved.")
 
     def disable_email_polling(self):
-        setting = {"whitelist": None}
+        sender = normalize_email(input("Enter the sender's email address to disable email polling: "))
+        whitelist = [sender]
 
-        if not setting:
-            print("Email polling is not started.")
+        try:
+            new_emails = self.list_new_email(whitelist=whitelist, mark_as_seen=True)
+        except Exception as e:
+            print(f"Error: {e}")
             return
 
-        sender = normalize_email(input("Enter the sender's email address to disable email polling: "))
+        if not new_emails:
+            print(f"No new emails from {sender}.")
+            return
 
-        if not sender:
-            setting['whitelist'] = None
-            print("Stop polling emails.")
-            self.poll_emails()
-        else:
-            if not setting['whitelist']:
-                print("No specific sender to stop looking for.")
-                return
-
-            if sender not in setting['whitelist']:
-                print(f"Not looking for emails from {sender}.")
-                return
-
-            if len(setting['whitelist']) > 1:
-                setting['whitelist'].remove(sender)
-                print(f"Stop looking for emails from {sender}.")
-            else:
-                setting['whitelist'] = None
-                print("Stop polling emails. Last email removed.")
-
+        self.report_email(new_emails)
         print("Settings saved.")
 
     def handle_email(self):
         try:
-            new_emails = self.list_new_email(account=self.account, folder=self.folder, password=self.password,
-                                             port=self.port, address=self.server)
+            new_emails = self.list_new_email(whitelist=None, mark_as_seen=True)
         except Exception as e:
             print(f"Error: {e}")
             return
@@ -246,10 +193,15 @@ class Email:
 
 
 # Example of usage:
-email_handler = Email()
+account = "bhavaniprasadt369@gmail.com"
+password = "vexl zmjr bzkk ailu"
+server = "imap.gmail.com"
+folder = "inbox"
+port = "993"
+
+email_handler = Email(account, password, server, folder, port)
 
 try:
-    email_handler.update_credentials()
     email_handler.poll_emails()
 except Exception as e:
     print(f"Error: {e}")
