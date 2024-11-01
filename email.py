@@ -194,7 +194,7 @@ class Email:
 
 # Example of usage:
 account = "bhavaniprasadt369@gmail.com"
-password = "vexl zmjr bzkk ailu"
+password = "aaaa aaaa aaaa aaaa"  //paste yours 16 letters 
 server = "imap.gmail.com"
 folder = "inbox"
 port = "993"
